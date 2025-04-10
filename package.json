@@ -1,0 +1,17 @@
+{
+  "name": "git-scripts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@babel/parser": "^7.26.10",
+    "@babel/traverse": "^7.27.0",
+    "dotenv": "^16.4.7",
+    "minimatch": "^9.0.5"
+  }
+}
