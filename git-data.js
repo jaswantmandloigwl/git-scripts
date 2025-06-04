@@ -8,8 +8,8 @@ const path = require('path');
 
 const REPO_PATH = process.env.REPO_PATH; // Read from .env file
 const AUTHOR = process.env.AUTHOR;      // Read from .env file
-const SINCE_DATE = "2025-03-01";          // Start date for commit filtering
-const UNTIL_DATE = "2025-03-31";          // End date for commit filtering
+const SINCE_DATE = "2025-05-01";          // Start date for commit filtering
+const UNTIL_DATE = "2025-05-31";          // End date for commit filtering
 const TEST_FILE_PATTERN = '**/*.spec.js'; // Test file pattern to match
 
 
