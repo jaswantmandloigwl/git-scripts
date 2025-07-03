@@ -8,9 +8,9 @@ const path = require('path');
 
 const REPO_PATH = process.env.REPO_PATH; // Read from .env file
 const AUTHOR = process.env.AUTHOR;      // Read from .env file
-const SINCE_DATE = "2025-05-01";          // Start date for commit filtering
-const UNTIL_DATE = "2025-05-31";          // End date for commit filtering
-const TEST_FILE_PATTERN = '**/*.spec.js'; // Test file pattern to match
+const SINCE_DATE = "2025-06-01";          // Start date for commit filtering
+const UNTIL_DATE = "2025-06-30";          // End date for commit filtering
+
 
 
 
@@ -54,7 +54,7 @@ function getListOfFiles(commits, repoPath) {
 // Filter test case files from a list of files
 function getTestCaseFiles(files) {
   return files.filter(file => 
-    minimatch(file, '**/*.spec.js') || minimatch(file, '**/*.test.js')
+    minimatch(file, '**/*.spec.js') || minimatch(file, '**/*.test.js') || minimatch(file, '**/*.test.tsx') || minimatch(file, '**/*.test.jsx') || minimatch(file, '**/*.test.ts')
   );
 }
 
