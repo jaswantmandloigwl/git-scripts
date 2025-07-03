@@ -1,5 +1,6 @@
 require('dotenv').config();
 const fs = require('fs');
+const simpleGit = require('simple-git');
 const babelParser = require('@babel/parser');
 const traverse = require('@babel/traverse').default;
 const { execSync } = require('child_process');
@@ -17,7 +18,8 @@ const UNTIL_DATE = "2025-06-30";          // End date for commit filtering
 // Helper to run shell commands safely
 function runCommand(command, cwd) {
   try {
-    return execSync(command, { cwd, encoding: 'utf-8' }).trim();
+    const result = execSync(command, { cwd, encoding: 'utf-8' });
+    return result ? result.trim() : '';
   } catch (error) {
     console.error(`Command failed: ${command}`);
     console.error(error.message);
@@ -35,9 +37,22 @@ function validateGitRepo(repoPath) {
 
 // Get commits by the author within the date range
 function getCommits(repoPath) {
-  const logCommand = `git log --author="${AUTHOR}" --since="${SINCE_DATE}" --until="${UNTIL_DATE}" --pretty=format:"%H"`;
+  // Try different date formats for better compatibility
+  const logCommand = `git log --author="${AUTHOR}" --since="${SINCE_DATE}T00:00:00" --until="${UNTIL_DATE}T23:59:59" --pretty=format:"%H"`;
+  console.log(`Running command: ${logCommand}`);
   const stdout = runCommand(logCommand, repoPath);
-  return stdout ? stdout.split('\n') : [];
+  console.log(`Git log output: "${stdout}"`);
+  
+  // If the above fails, try with simpler date format
+  if (!stdout) {
+    const fallbackCommand = `git log --author="${AUTHOR}" --since="${SINCE_DATE}" --until="${UNTIL_DATE}" --pretty=format:"%H"`;
+    console.log(`Trying fallback command: ${fallbackCommand}`);
+    const fallbackOutput = runCommand(fallbackCommand, repoPath);
+    console.log(`Fallback git log output: "${fallbackOutput}"`);
+    return fallbackOutput ? fallbackOutput.split('\n').filter(hash => hash.trim() !== '') : [];
+  }
+  
+  return stdout ? stdout.split('\n').filter(hash => hash.trim() !== '') : [];
 }
 
 // Get list of files changed in commits
@@ -46,8 +61,16 @@ function getListOfFiles(commits, repoPath) {
   commits.forEach(commit => {
     const showCommand = `git show --pretty="" --name-only ${commit}`;
     const stdout = runCommand(showCommand, repoPath);
-    stdout.split('\n').forEach(file => files.add(file));
+    if (stdout) {
+      stdout.split('\n').forEach(file => {
+        const trimmedFile = file.trim();
+        if (trimmedFile) files.add(trimmedFile);
+      });
+    }
   });
+
+  console.log({commits: commits.length, files: files.size});
+
   return Array.from(files);
 }
 
@@ -84,7 +107,9 @@ function getTestCasesUpdatedLineNumbersByFile(filePath, commits, repoPath) {
   commits.forEach(commit => {
     const diffCommand = `git diff -U0 ${commit}^ ${commit} -- "${filePath}"`;
     const diffOutput = runCommand(diffCommand, repoPath);
-    updatedLineNumbers.push(...parseDiff(diffOutput));
+    if (diffOutput) {
+      updatedLineNumbers.push(...parseDiff(diffOutput));
+    }
   });
   return updatedLineNumbers;
 }
@@ -146,6 +171,17 @@ function getTotalLinesByAuthor(commits, repoPath) {
 
 // Main function
 function main() {
+  console.log(`Configuration:`);
+  console.log(`  REPO_PATH: ${REPO_PATH}`);
+  console.log(`  AUTHOR: ${AUTHOR}`);
+  console.log(`  SINCE_DATE: ${SINCE_DATE}`);
+  console.log(`  UNTIL_DATE: ${UNTIL_DATE}`);
+  
+  if (!REPO_PATH || !AUTHOR) {
+    console.error('Error: REPO_PATH and AUTHOR must be set in environment variables');
+    process.exit(1);
+  }
+
   validateGitRepo(REPO_PATH);
 
   const commits = getCommits(REPO_PATH);
@@ -165,9 +201,11 @@ function main() {
   let updatedTestCases = [];
   testCaseFiles.forEach(file => {
     const filePath = path.join(REPO_PATH, file);
+    console.log(`Processing test file: ${filePath}`);
     const testCases = getTestCasesLineNumbersByFile(filePath);
-    const updatedLines = getTestCasesUpdatedLineNumbersByFile(filePath, commits, REPO_PATH);
+    const updatedLines = getTestCasesUpdatedLineNumbersByFile(file, commits, REPO_PATH);
     const updated = getUpdatedTestCases(testCases, updatedLines);
+    console.log(`  Found ${testCases.length} test cases, ${updated.length} updated`);
     updatedTestCases.push(...updated);
   });
 

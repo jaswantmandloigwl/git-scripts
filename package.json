@@ -12,6 +12,7 @@
     "@babel/parser": "^7.26.10",
     "@babel/traverse": "^7.27.0",
     "dotenv": "^16.4.7",
-    "minimatch": "^9.0.5"
+    "minimatch": "^9.0.5",
+    "simple-git": "^3.28.0"
   }
 }
