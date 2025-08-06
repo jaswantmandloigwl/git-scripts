@@ -9,8 +9,8 @@ const path = require('path');
 
 const REPO_PATH = process.env.REPO_PATH; // Read from .env file
 const AUTHOR = process.env.AUTHOR;      // Read from .env file
-const SINCE_DATE = "2025-06-01";          // Start date for commit filtering
-const UNTIL_DATE = "2025-06-30";          // End date for commit filtering
+const SINCE_DATE = "2025-07-01";          // Start date for commit filtering
+const UNTIL_DATE = "2025-07-31";          // End date for commit filtering
 
 
 
@@ -37,22 +37,79 @@ function validateGitRepo(repoPath) {
 
 // Get commits by the author within the date range
 function getCommits(repoPath) {
-  // Try different date formats for better compatibility
+  console.log(`\n=== DEBUGGING getCommits function ===`);
+  
+  // First, check what authors exist in the repository
+  const authorsCommand = `git log --pretty=format:"%an" | sort | uniq`;
+  console.log(`Getting all authors...`);
+  const authors = runCommand(authorsCommand, repoPath);
+  console.log(`Available authors in repository:\n${authors}`);
+  
+  // Check if there are any commits in the date range (any author)
+  const dateRangeCommand = `git log --since="${SINCE_DATE}" --until="${UNTIL_DATE}" --pretty=format:"%H %an %ad" --date=short`;
+  console.log(`\nChecking commits in date range ${SINCE_DATE} to ${UNTIL_DATE} (any author)...`);
+  const dateRangeOutput = runCommand(dateRangeCommand, repoPath);
+  console.log(`Commits in date range:\n${dateRangeOutput || 'No commits found in date range'}`);
+  
+  // Check recent commits by this author (any date)
+  const recentAuthorCommand = `git log --author="${AUTHOR}" --max-count=5 --pretty=format:"%H %ad" --date=short`;
+  console.log(`\nChecking recent commits by author "${AUTHOR}"...`);
+  const recentAuthorOutput = runCommand(recentAuthorCommand, repoPath);
+  console.log(`Recent commits by ${AUTHOR}:\n${recentAuthorOutput || 'No commits found for this author'}`);
+  
+  // Collect commits from all possible author name variations
+  const allCommits = new Set();
+  
+  // Method 1: Exact author name match
   const logCommand = `git log --author="${AUTHOR}" --since="${SINCE_DATE}T00:00:00" --until="${UNTIL_DATE}T23:59:59" --pretty=format:"%H"`;
-  console.log(`Running command: ${logCommand}`);
+  console.log(`\nRunning main command: ${logCommand}`);
   const stdout = runCommand(logCommand, repoPath);
   console.log(`Git log output: "${stdout}"`);
   
-  // If the above fails, try with simpler date format
-  if (!stdout) {
-    const fallbackCommand = `git log --author="${AUTHOR}" --since="${SINCE_DATE}" --until="${UNTIL_DATE}" --pretty=format:"%H"`;
-    console.log(`Trying fallback command: ${fallbackCommand}`);
-    const fallbackOutput = runCommand(fallbackCommand, repoPath);
-    console.log(`Fallback git log output: "${fallbackOutput}"`);
-    return fallbackOutput ? fallbackOutput.split('\n').filter(hash => hash.trim() !== '') : [];
+  if (stdout) {
+    stdout.split('\n').filter(hash => hash.trim() !== '').forEach(hash => allCommits.add(hash));
   }
   
-  return stdout ? stdout.split('\n').filter(hash => hash.trim() !== '') : [];
+  // Method 2: Try reversed name format (Last, First)
+  const nameParts = AUTHOR.split(' ');
+  if (nameParts.length >= 2) {
+    const reversedAuthor = `${nameParts[nameParts.length - 1]}, ${nameParts.slice(0, -1).join(' ')}`;
+    const reversedCommand = `git log --author="${reversedAuthor}" --since="${SINCE_DATE}T00:00:00" --until="${UNTIL_DATE}T23:59:59" --pretty=format:"%H"`;
+    console.log(`\nTrying reversed name format "${reversedAuthor}": ${reversedCommand}`);
+    const reversedOutput = runCommand(reversedCommand, repoPath);
+    console.log(`Reversed name output: "${reversedOutput}"`);
+    
+    if (reversedOutput) {
+      reversedOutput.split('\n').filter(hash => hash.trim() !== '').forEach(hash => allCommits.add(hash));
+    }
+  }
+  
+  // Method 3: Try partial matching with first name only
+  const firstNameOnly = AUTHOR.split(' ')[0];
+  const partialAuthorCommand = `git log --author="${firstNameOnly}" --since="${SINCE_DATE}T00:00:00" --until="${UNTIL_DATE}T23:59:59" --pretty=format:"%H %an"`;
+  console.log(`\nTrying partial author match with "${firstNameOnly}": ${partialAuthorCommand}`);
+  const partialOutput = runCommand(partialAuthorCommand, repoPath);
+  console.log(`Partial author output: "${partialOutput}"`);
+  
+  if (partialOutput) {
+    partialOutput.split('\n')
+      .filter(line => line.trim() !== '')
+      .forEach(line => {
+        const [hash, ...authorParts] = line.split(' ');
+        const authorName = authorParts.join(' ');
+        // Only include if it contains both first and last name
+        if (authorName.toLowerCase().includes(nameParts[0].toLowerCase()) && 
+            authorName.toLowerCase().includes(nameParts[nameParts.length - 1].toLowerCase())) {
+          allCommits.add(hash);
+        }
+      });
+  }
+  
+  const finalCommits = Array.from(allCommits);
+  console.log(`\nTotal unique commits found: ${finalCommits.length}`);
+  console.log(`=== END DEBUGGING ===\n`);
+  
+  return finalCommits;
 }
 
 // Get list of files changed in commits
